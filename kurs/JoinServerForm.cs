@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Drawing;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -72,24 +71,52 @@ namespace kurs
             string ip = txtIP.Text.Trim();
             if (string.IsNullOrWhiteSpace(ip))
             {
-                MessageBox.Show("Введите корректный IP.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Введите корректный IP.",
+                                "Ошибка",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
                 return;
             }
 
+            TcpClient client = null;
             try
             {
-                var client = new TcpClient();
-                await client.ConnectAsync(ip, Port);
+                client = new TcpClient();
+                // Попытка подключения с ожиданием до 5 секунд
+                var connectTask = client.ConnectAsync(ip, Port);
+                var timeout = Task.Delay(5000);
 
-                // Успешно подключились, запускаем GameForm в режиме клиента
+                var completed = await Task.WhenAny(connectTask, timeout);
+                if (completed == timeout)
+                {
+                    // Таймаут
+                    client.Close();
+                    MessageBox.Show("Не удалось подключиться к серверу: таймаут.",
+                                    "Ошибка",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Если подключились успешно:
                 this.Hide();
                 var game = new GameForm(client, isServer: false);
-                game.FormClosed += (s2, e2) => { this.Close(); new Form1().Show(); };
+                game.FormClosed += (s2, e2) =>
+                {
+                    this.Close();
+                    new Form1().Show();
+                };
                 game.Show();
             }
-            catch
+            catch (Exception ex)
             {
-                MessageBox.Show("Не удалось подключиться к серверу.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // Ловим любую ошибку сокета
+                client?.Close();
+                MessageBox.Show($"Не удалось подключиться к серверу:\n{ex.Message}",
+                                "Ошибка",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error);
+                // Закрываем форму и возвращаемся в главное меню
                 this.Close();
                 new Form1().Show();
             }
@@ -97,13 +124,14 @@ namespace kurs
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
+            // Закрываем форму и возвращаемся в главное меню
             this.Close();
             new Form1().Show();
         }
 
         private void JoinServerForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Ничего особенного не делаем
+            // Здесь ничего не делаем (без ошибок)
         }
     }
 }

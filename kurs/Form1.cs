@@ -12,23 +12,28 @@ namespace kurs
 
         private void btnCreateServer_Click(object sender, EventArgs e)
         {
-            var serverForm = new CreateServerForm(); // форма с логикой сервера
+            this.Hide();
+            // Открываем форму создания сервера
+            var serverForm = new CreateServerForm();
             serverForm.Show();
         }
 
         private void btnJoinServer_Click(object sender, EventArgs e)
         {
-            var connectForm = new JoinServerForm(); // форма ввода IP и подключения
+            this.Hide();
+            // Открываем форму подключения к серверу
+            var connectForm = new JoinServerForm();
             connectForm.Show();
         }
 
         private void btnLocalPlay_Click(object sender, EventArgs e)
         {
+            // Открываем локальную игру
             var gameForm = new GameForm();
             gameForm.Show();
-            this.Hide(); // скрываем главное меню
+            this.Hide(); // Скрываем главное меню
+            gameForm.FormClosed += (s, args) => this.Show();
         }
-
 
         private void btnExit_Click(object sender, EventArgs e)
         {

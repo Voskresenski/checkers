@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Drawing;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -14,10 +13,12 @@ namespace kurs
 
         private Label lblInfo;
         private Button btnCancel;
+        private bool isListening = false;
 
         public CreateServerForm()
         {
             InitializeComponent();
+            // Запускаем асинхронное ожидание подключений
             StartListening();
         }
 
@@ -62,7 +63,7 @@ namespace kurs
         {
             try
             {
-                // Определяем локальный IP (IPv4)  
+                // Определяем локальный IP (IPv4)
                 string localIP = "Не удалось определить IP";
                 foreach (var ni in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
                 {
@@ -74,22 +75,42 @@ namespace kurs
                 }
 
                 lblInfo.Text = $"Сервер запущен.\nIP: {localIP}\nПорт: {Port}\nОжидание соперника...";
-
                 listener = new TcpListener(IPAddress.Any, Port);
                 listener.Start();
+                isListening = true;
 
-                // Ждём подключение клиента (асинхронно, чтобы не "заморозить" UI)
-                var client = await listener.AcceptTcpClientAsync();
+                TcpClient client = null;
+                try
+                {
+                    // Ждём подключение клиента (асинхронно)
+                    client = await listener.AcceptTcpClientAsync();
+                }
+                catch
+                {
+                    // Ловим ситуацию, когда listener.Stop() был вызван
+                    return;
+                }
 
-                // Когда подключились — запускаем сетевую игру (сервер)
-                this.Hide();
-                var game = new GameForm(client, isServer: true);
-                game.FormClosed += (s, e) => { this.Close(); new Form1().Show(); };
-                game.Show();
+                if (client != null)
+                {
+                    // Когда подключились — запускаем сетевую игру (сервер)
+                    this.Hide();
+                    var game = new GameForm(client, isServer: true);
+                    game.FormClosed += (s, e) =>
+                    {
+                        this.Close();
+                        new Form1().Show();
+                    };
+                    game.Show();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при запуске сервера:\n{ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // Если не удалось запустить listener
+                MessageBox.Show($"Ошибка при запуске сервера:\n{ex.Message}",
+                                "Ошибка",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error);
                 this.Close();
                 new Form1().Show();
             }
@@ -97,14 +118,34 @@ namespace kurs
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
-            listener?.Stop();
+            // Останавливаем listener, если он работает
+            try
+            {
+                isListening = false;
+                listener?.Stop();
+            }
+            catch
+            {
+                // ничего — общий try/catch на случай, если listener уже был остановлен
+            }
+
+            // Закрываем форму и возвращаемся в главное меню
             this.Close();
             new Form1().Show();
         }
 
         private void CreateServerForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            listener?.Stop();
+            // Гарантированно остановим listener
+            try
+            {
+                isListening = false;
+                listener?.Stop();
+            }
+            catch
+            {
+                // игнорируем любые ошибки здесь
+            }
         }
     }
 }
